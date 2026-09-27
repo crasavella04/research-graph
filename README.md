@@ -1,5 +1,7 @@
 # research-graph
 
+[![CI](https://github.com/crasavella04/research-graph/actions/workflows/ci.yml/badge.svg)]
+
 `research-graph` — учебный проект курса «РРиИД Python», который развивается в течение семестра.
 Задача проекта — собирать данные об исследовательских репозиториях (в том числе через GitHub API),
 складывать их в локальное хранилище и строить по ним граф связей.
@@ -30,8 +32,6 @@ uv sync
 cp .env.example .env
 ```
 
-В PowerShell: `Copy-Item .env.example .env`.
-
 ## Конфигурация
 
 Настройки читаются из переменных окружения с префиксом `RG_` или из файла `.env` в текущей директории.
@@ -40,7 +40,7 @@ cp .env.example .env
 | Переменная | Описание | По умолчанию | Ограничения |
 |---|---|---|---|
 | `RG_GITHUB_TOKEN` | Токен GitHub API. В выводе CLI всегда маскируется | не задан | — |
-| `RG_DATA_DIR` | Директория для данных проекта | `data` | создаётся автоматически |
+| `RG_DATA_DIR` | Директория для данных проекта | `data` |  |
 | `RG_LOG_LEVEL` | Уровень логирования | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (регистр не важен) |
 | `RG_REQUEST_TIMEOUT` | Таймаут HTTP-запросов, секунды | `10.0` | больше 0 и не больше 300 |
 | `RG_MAX_CONCURRENCY` | Максимум одновременных запросов | `4` | от 1 до 64 |
@@ -134,19 +134,19 @@ research-graph/
 ├── src/
 │   └── research_graph/
 │       ├── __init__.py
-│       ├── py.typed            # маркер PEP 561: пакет поставляется с аннотациями типов
-│       ├── cli.py              # Typer-приложение `rg`: команды version и check-config
-│       ├── config.py           # Settings (pydantic-settings), префикс RG_, get_settings()
-│       └── logging_setup.py    # setup_logging(): формат, вывод в stderr, приглушение библиотек
+│       ├── py.typed
+│       ├── cli.py              # Typer-приложение `rg`: команды проекта
+│       ├── config.py           # настройки проекта
+│       └── logging_setup.py    # настройки логирования, приглушение библиотек
 ├── tests/
-│   ├── conftest.py             # автофикстура, изолирующая тесты от .env и переменных RG_*
+│   ├── conftest.py             # общие настройки для всех тестов
 │   ├── test_cli.py             # тесты CLI через CliRunner
-│   └── test_config.py          # тесты настроек: значения по умолчанию, окружение, .env
+│   └── test_config.py          # тесты настроек
 ├── .env.example                # шаблон настроек со всеми ключами и безопасными значениями
 ├── .gitignore
 ├── .pre-commit-config.yaml     # хуки pre-commit
 ├── .python-version             # версия Python для uv
-├── pyproject.toml              # метаданные, зависимости, точка входа rg, настройки инструментов
+├── pyproject.toml              # метаданные, зависимости, точка входа rg
 ├── uv.lock                     # зафиксированные версии зависимостей
 └── README.md
 ```
