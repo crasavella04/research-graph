@@ -10,8 +10,6 @@ repos:
       - id: check-merge-conflict
       - id: detect-private-key
 
-  # ruff и mypy запускаются из проектного окружения (uv run),
-  # поэтому версии совпадают с uv.lock, а mypy видит pydantic, typer и pytest
   - repo: local
     hooks:
       - id: ruff
@@ -26,7 +24,7 @@ repos:
         types: [python]
       - id: mypy
         name: mypy
-        entry: uv run mypy src tests
+        entry: uv run mypy
         language: system
         types: [python]
         pass_filenames: false

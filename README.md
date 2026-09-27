@@ -108,7 +108,7 @@ uv run ruff format --check .
 Проверка типов:
 
 ```bash
-uv run mypy src tests
+uv run mypy
 ```
 
 Хуки pre-commit (ruff, ruff-format, mypy и базовые проверки) запускаются при каждом коммите.
