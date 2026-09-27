@@ -16,7 +16,7 @@
 ## Установка
 
 ```bash
-git clone https://github.com/<user>/research-graph.git
+git clone https://github.com/crasavella04/research-graph.git
 cd research-graph
 uv sync
 ```
