@@ -1,13 +1,11 @@
 # research-graph
 
-[![CI](https://github.com/crasavella04/research-graph/actions/workflows/ci.yml/badge.svg)]
+[![CI](https://github.com/crasavella04/research-graph/actions/workflows/ci.yml/badge.svg)](https://github.com/crasavella04/research-graph/actions/workflows/ci.yml)
 
-`research-graph` — учебный проект курса «РРиИД Python», который развивается в течение семестра.
-Задача проекта — собирать данные об исследовательских репозиториях (в том числе через GitHub API),
-складывать их в локальное хранилище и строить по ним граф связей.
+`research-graph` — учебный проект курса «Разработка на Python и инженерия данных», который развивается в течение семестра.
+Проект решает задачу анализа тональности пользовательских отзывов о доступности мобильных приложений: как люди с особыми потребностями оценивают удобство приложений и что им мешает.
 
-На текущем этапе (ЛР1) заложен фундамент: пакет в src-layout, типизированная конфигурация через
-переменные окружения, единая настройка логирования, CLI `rg`, тесты, pre-commit и CI.
+Основа проекта — датасет [Accessibility User Reviews](https://www.kaggle.com/datasets/intelai/dataset-accessibility-user-reviews). Он содержит отзывы пользователей о доступности приложений с метками тональности.
 
 ## Требования
 
