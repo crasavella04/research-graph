@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets
+.env
+
+# Local data (path is set via RG_DATA_DIR)
+data/
+
+# Tool caches
+.coverage
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
