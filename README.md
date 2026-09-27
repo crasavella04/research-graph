@@ -40,6 +40,7 @@ cp .env.example .env
 | `RG_GITHUB_TOKEN` | Токен GitHub API. В выводе CLI всегда маскируется | не задан | — |
 | `RG_DATA_DIR` | Директория для данных проекта | `data` |  |
 | `RG_LOG_LEVEL` | Уровень логирования | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (регистр не важен) |
+| `RG_LOG_FORMAT` | Формат логов: текст или одна JSON-строка на запись | `text` | `text`, `json` (регистр не важен) |
 | `RG_REQUEST_TIMEOUT` | Таймаут HTTP-запросов, секунды | `10.0` | больше 0 и не больше 300 |
 | `RG_MAX_CONCURRENCY` | Максимум одновременных запросов | `4` | от 1 до 64 |
 
@@ -71,11 +72,28 @@ uv run rg check-config
 github_token:    not set
 data_dir:        /path/to/research-graph/data
 log_level:       INFO
+log_format:      text
 request_timeout: 10.0
 max_concurrency: 4
 ```
 
 Если токен задан, он выводится только в маскированном виде, например `ghp_****abcd`.
+
+Логи пишутся в stderr. Со структурным форматом каждая запись — одна JSON-строка,
+которую удобно разбирать инструментами вроде `jq` или систем сбора логов:
+
+```bash
+RG_LOG_FORMAT=json RG_LOG_LEVEL=DEBUG uv run rg check-config
+```
+
+```text
+{"timestamp": "2026-09-27T13:26:21.265711+00:00", "level": "DEBUG", "logger": "research_graph.cli", "message": "Settings loaded"}
+github_token:    not set
+...
+```
+
+Дополнительные поля передаются через `extra` и попадают в JSON как отдельные ключи:
+`logger.info("loaded", extra={"rows": 1000})`.
 
 При некорректном значении команда завершается с кодом 1 и объясняет, что не так:
 
@@ -135,11 +153,12 @@ research-graph/
 │       ├── py.typed
 │       ├── cli.py              # Typer-приложение `rg`: команды проекта
 │       ├── config.py           # настройки проекта
-│       └── logging_setup.py    # настройки логирования, приглушение библиотек
+│       └── logging_setup.py    # настройка логирования: текст или JSON, приглушение библиотек
 ├── tests/
 │   ├── conftest.py             # общие настройки для всех тестов
 │   ├── test_cli.py             # тесты CLI через CliRunner
-│   └── test_config.py          # тесты настроек
+│   ├── test_config.py          # тесты настроек
+│   └── test_logging.py         # тесты логирования и JSON-формата
 ├── .env.example                # шаблон настроек со всеми ключами и безопасными значениями
 ├── .gitignore
 ├── .pre-commit-config.yaml     # хуки pre-commit

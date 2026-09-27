@@ -35,11 +35,12 @@ def check_config() -> None:
         typer.echo(f"Invalid configuration:\n{exc}", err=True)
         raise typer.Exit(code=1) from exc
 
-    setup_logging(settings.log_level)
+    setup_logging(settings.log_level, settings.log_format)
     logger.debug("Settings loaded")
 
     typer.echo(f"github_token:    {mask_token(settings.github_token)}")
     typer.echo(f"data_dir:        {settings.data_dir.resolve()}")
     typer.echo(f"log_level:       {settings.log_level}")
+    typer.echo(f"log_format:      {settings.log_format}")
     typer.echo(f"request_timeout: {settings.request_timeout}")
     typer.echo(f"max_concurrency: {settings.max_concurrency}")

@@ -42,7 +42,7 @@ warn_required_dynamic_aliases = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers --cov=research_graph --cov-report=term-missing"
+addopts = "-ra --strict-markers --cov=research_graph --cov-report=term-missing --cov-fail-under=70"
 
 [tool.coverage.run]
 branch = true

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -17,6 +18,7 @@ class Settings(BaseSettings):
     github_token: str | None = None
     data_dir: Path = Path("data")
     log_level: str = "INFO"
+    log_format: Literal["text", "json"] = "text"
     request_timeout: float = Field(default=10.0, gt=0, le=300)
     max_concurrency: int = Field(default=4, ge=1, le=64)
 
@@ -27,6 +29,11 @@ class Settings(BaseSettings):
         if level not in LOG_LEVELS:
             raise ValueError(f"log_level must be one of {sorted(LOG_LEVELS)}")
         return level
+
+    @field_validator("log_format", mode="before")
+    @classmethod
+    def normalize_log_format(cls, value: object) -> object:
+        return value.lower() if isinstance(value, str) else value
 
     def ensure_data_dir(self) -> Path:
         self.data_dir.mkdir(parents=True, exist_ok=True)
