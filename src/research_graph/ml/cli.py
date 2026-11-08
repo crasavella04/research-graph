@@ -11,6 +11,27 @@ from research_graph.ml.prepare import audit, prepare
 app = typer.Typer(help="Audit, annotate and split ML data.", no_args_is_help=True)
 
 
+@app.command("evaluate")
+def evaluate_command(
+    model_dir: Path = Path("artifacts/baseline-v1"),
+    split_dir: Path = Path("data/processed/split-v1"),
+    output: Path = Path("artifacts/baseline-v1/evaluation"),
+) -> None:
+    """Evaluate the saved model on validation/test and write metric reports."""
+    from research_graph.ml.evaluate import evaluate
+
+    try:
+        report = evaluate(model_dir, split_dir, output)
+    except (ValueError, TypeError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    for name, result in report["splits"].items():
+        typer.echo(
+            f"{name}: accuracy={result['accuracy']:.4f}; macro_f1={result['macro_f1']:.4f}"
+        )
+    typer.echo(f"Evaluation saved: {output}")
+
+
 @app.command("train")
 def train_command(
     source: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
