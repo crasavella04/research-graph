@@ -11,6 +11,30 @@ from research_graph.ml.prepare import audit, prepare
 app = typer.Typer(help="Audit, annotate and split ML data.", no_args_is_help=True)
 
 
+@app.command("train")
+def train_command(
+    source: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/processed/split-v1/train.csv"
+    ),
+    output: Path = Path("artifacts/baseline-v1"),
+    seed: int = 42,
+    c: Annotated[float, typer.Option(min=0.000001)] = 1.0,
+    max_iter: Annotated[int, typer.Option(min=1)] = 1000,
+) -> None:
+    """Train TF-IDF + Logistic Regression and save a versioned model bundle."""
+    # Other data/CLI commands do not need to import the training stack.
+    from research_graph.ml.train import train
+
+    try:
+        metadata = train(source, output, seed, c, max_iter)
+    except (ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(
+        f"Model saved: {output / 'model.joblib'}; version: {metadata['model_version']}"
+    )
+
+
 @app.command("annotate")
 def annotate_command(
     review: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
