@@ -6,8 +6,10 @@ from pydantic import ValidationError
 
 from research_graph.config import get_settings
 from research_graph.logging_setup import setup_logging
+from research_graph.ml.cli import app as ml_app
 
 app = typer.Typer(help="research-graph command line interface.", no_args_is_help=True)
+app.add_typer(ml_app, name="ml")
 
 logger = logging.getLogger(__name__)
 
