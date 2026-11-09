@@ -3,7 +3,9 @@ export type Label = typeof labels[number];
 export const labelNames: Record<Label, string> = {
   no_issue: 'Нет проблемы', low: 'Низкая', medium: 'Средняя', high: 'Высокая',
 };
-export interface Health { status: string; model_loaded: boolean; model_version: string | null; training: boolean }
+export interface DatasetSummary { dataset_version: string; rows: number; labels: Partial<Record<Label, number>>; pending_count: number }
+export interface DatasetUpload extends DatasetSummary { status: 'uploaded' }
+export interface Health { status: string; model_loaded: boolean; model_version: string | null; training: boolean; dataset?: DatasetSummary | null }
 export interface Prediction { label: Label; criticality: number | null; confidence: number | null }
 export interface Feedback { action: string; pending_count: number; dataset_version: string }
 export interface ClassMetrics { precision: number; recall: number; 'f1-score': number; support: number }

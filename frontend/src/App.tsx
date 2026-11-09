@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { labelNames, labels, post, request } from './api';
-import type { Feedback, Health, Label, Metrics, Model, Prediction, PredictionRecord, TrainingResult } from './api';
+import type { DatasetUpload, Feedback, Health, Label, Metrics, Model, Prediction, PredictionRecord, TrainingResult } from './api';
 
 const percentage = (value: number) => `${(value * 100).toFixed(1)}%`;
 const criticality = { no_issue: null, low: 0, medium: 1, high: 2 };
@@ -47,6 +47,7 @@ export default function App() {
   const [iterations, setIterations] = useState('1000');
   const [modelFile, setModelFile] = useState<File | null>(null);
   const [metadataFile, setMetadataFile] = useState<File | null>(null);
+  const [datasetFile, setDatasetFile] = useState<File | null>(null);
   const [seconds, setSeconds] = useState(0);
   const locked = busy !== null || health?.training === true;
 
@@ -134,6 +135,7 @@ export default function App() {
             <form className="feedback" onSubmit={event => { event.preventDefault(); run('Сохранение исправления', async () => {
               const saved = await post<Feedback>('/feedback', { text, label });
               setNotice(`Исправление ${saved.action === 'updated' ? 'обновлено' : 'сохранено'}. Ожидают обучения: ${saved.pending_count}.`);
+              setHealth(previous => previous?.dataset ? { ...previous, dataset: { ...previous.dataset, pending_count: saved.pending_count } } : previous);
             }); }}>
               <label htmlFor="correct-label">Правильный класс</label>
               <select id="correct-label" value={label} onChange={event => setLabel(event.target.value as Label)}>{labels.map(value => <option key={value} value={value}>{labelNames[value]}</option>)}</select>
@@ -143,6 +145,22 @@ export default function App() {
         </div>}
 
         {tab === 'training' && <>
+          <section className="card dataset-card"><div className="section-heading"><span className="step">CSV</span><div><h2>Датасет для обучения</h2><p>Загрузите полный размеченный CSV. Делить его на выборки вручную не нужно.</p></div></div>
+            <form className="dataset-upload" onSubmit={event => { event.preventDefault(); run('Загрузка датасета', async () => {
+              if (!datasetFile) return;
+              const body = new FormData(); body.append('file', datasetFile);
+              const uploaded = await request<DatasetUpload>('/upload-dataset', { method: 'POST', body });
+              setResult(null);
+              setHealth(previous => previous ? { ...previous, dataset: uploaded } : previous);
+              setNotice(`Датасет загружен. Отзывов: ${uploaded.rows}. Теперь можно запустить обучение.`);
+              try { await refresh(); } catch { setError('Датасет сохранён, но обновить состояние не удалось. Нажмите «Обновить состояние».'); }
+            }); }}>
+              <label htmlFor="dataset-file">CSV-файл<input id="dataset-file" type="file" accept=".csv,text/csv" required onChange={event => setDatasetFile(event.target.files?.[0] || null)} /></label>
+              <button type="submit" className="secondary" disabled={!datasetFile}>Загрузить CSV</button>
+            </form>
+            <p className="hint">Формат: UTF-8, разделитель — запятая. Обязательные столбцы: text и label (no_issue, low, medium, high). Дополнительные столбцы допустимы. Новый CSV заменит базовые данные для следующего обучения; накопленный feedback и текущая модель сохранятся.</p>
+            {health?.dataset && <div className="dataset-summary"><strong>Актуальный датасет · {health.dataset.rows.toLocaleString('ru-RU')} отзывов</strong><code>{health.dataset.dataset_version}</code><div>{labels.map(value => <span key={value} className={`tag ${value}`}>{labelNames[value]}: {health.dataset?.labels[value] || 0}</span>)}</div><p>Исправлений для следующего обучения: {health.dataset.pending_count}</p></div>}
+          </section>
           <section className="card"><div className="section-heading"><span className="step">01</span><div><h2>Обучение модели</h2><p>Последний датасет и сохранённые исправления объединятся автоматически.</p></div></div>
             <form onSubmit={event => { event.preventDefault(); run('Обучение модели', async () => {
               const trained = await post<TrainingResult>('/train', { seed: Number(seed), c: Number(c), max_iter: Number(iterations) });

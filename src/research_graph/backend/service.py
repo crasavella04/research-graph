@@ -1,11 +1,14 @@
 """Coordinate inference and synchronous training with short filesystem locks."""
 
+import csv
+import hashlib
 import json
 import logging
 import shutil
 import tempfile
 import threading
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +45,10 @@ class ModelExistsError(Exception):
     pass
 
 
+class DatasetChangedError(Exception):
+    pass
+
+
 def remove_created(directory: Path, root: Path) -> None:
     """Only roll back newly published direct children of an owned version root."""
     if directory.resolve().parent != root.resolve():
@@ -66,12 +73,70 @@ class Backend:
 
     def health(self) -> dict[str, Any]:
         predictor = self.predictor
+        with self.lock:
+            current = self.store.state.get("dataset_version")
+            dataset = self.dataset_summary(self.store.dataset()) if current else None
         return {
             "status": "ok" if predictor else "unavailable",
             "model_loaded": predictor is not None,
             "model_version": predictor.version if predictor else None,
             "training": self.training_lock.locked(),
+            "dataset": dataset,
         }
+
+    def dataset_summary(self, directory: Path) -> dict[str, Any]:
+        records = reviews(directory / "reviews.csv")
+        return {
+            "dataset_version": directory.name,
+            "rows": len(records),
+            "labels": dict(Counter(row["label"] for row in records)),
+            "pending_count": len(self.store.feedback(directory)),
+        }
+
+    def upload_dataset(self, content: bytes, filename: str | None) -> dict[str, Any]:
+        version = new_version("dataset")
+        target = self.store.datasets / version
+        with tempfile.TemporaryDirectory(
+            prefix=".upload-", dir=self.store.datasets
+        ) as temporary:
+            staged = Path(temporary) / version
+            staged.mkdir()
+            source = staged / "source.csv"
+            source.write_bytes(content)
+            try:
+                records = reviews(source, strict=True)
+            except (csv.Error, UnicodeError) as exc:
+                raise ValueError(
+                    "Expected a valid UTF-8 CSV with comma-separated text and label columns"
+                ) from exc
+            write_csv(staged / "reviews.csv", DATA_FIELDS, records)
+            with self.lock:
+                parent = (
+                    self.store.dataset()
+                    if self.store.state.get("dataset_version")
+                    else None
+                )
+                pending = self.store.feedback(parent) if parent else []
+                write_csv(staged / "feedback.csv", FEEDBACK_FIELDS, pending)
+                write_json(
+                    staged / "metadata.json",
+                    {
+                        "version": version,
+                        "parent": parent.name if parent else None,
+                        "source": Path(filename or "dataset.csv").name,
+                        "source_sha256": hashlib.sha256(content).hexdigest(),
+                        "rows": len(records),
+                        "labels": dict(Counter(row["label"] for row in records)),
+                    },
+                )
+                summary = self.dataset_summary(staged)
+                staged.rename(target)
+                try:
+                    self.store.commit(dataset_version=version)
+                except Exception:
+                    remove_created(target, self.store.datasets)
+                    raise
+        return {"status": "uploaded", **summary}
 
     def models(self) -> list[dict[str, Any]]:
         records = []
@@ -210,6 +275,10 @@ class Backend:
             )
             snapshot_revisions = {row["id"]: row["revision"] for row in snapshot}
             with self.lock:
+                if self.store.state.get("dataset_version") != parent.name:
+                    raise DatasetChangedError(
+                        "A new dataset was uploaded during training; train again using the latest version"
+                    )
                 pending = [
                     row
                     for row in self.store.feedback(parent)

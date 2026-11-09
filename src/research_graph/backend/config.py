@@ -17,3 +17,4 @@ class APISettings(BaseSettings):
     initial_dataset: Path | None = None
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     max_model_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
+    max_dataset_bytes: int = Field(default=50 * 1024 * 1024, gt=0)

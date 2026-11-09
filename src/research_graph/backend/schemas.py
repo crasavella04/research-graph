@@ -32,11 +32,23 @@ class Prediction(BaseModel):
     confidence: float | None = Field(default=None, ge=0, le=1)
 
 
+class DatasetSummary(BaseModel):
+    dataset_version: str
+    rows: int
+    labels: dict[str, int]
+    pending_count: int
+
+
+class DatasetUploadResult(DatasetSummary):
+    status: Literal["uploaded"]
+
+
 class Health(BaseModel):
     status: Literal["ok", "unavailable"]
     model_loaded: bool
     model_version: str | None
     training: bool
+    dataset: DatasetSummary | None = None
 
 
 class FeedbackResult(BaseModel):

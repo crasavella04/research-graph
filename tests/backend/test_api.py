@@ -271,3 +271,154 @@ def test_startup_latest_model(
     (latest / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
     with TestClient(create_app(settings, tmp_path / "data")) as connection:
         assert connection.get("/health").json()["model_version"] == "latest-model"
+
+
+def test_upload_then_train_without_local_initial_file(
+    client: TestClient, initial: Path
+) -> None:
+    service = backend(client)
+    service.store.initial = initial.with_name("missing.csv")
+    content = initial.read_bytes()
+    uploaded = client.post(
+        "/upload-dataset", files={"file": ("reviews.csv", content, "text/csv")}
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    info = uploaded.json()
+    assert info["rows"] == 24
+    assert info["labels"] == {
+        label: 6 for label in ("no_issue", "low", "medium", "high")
+    }
+    assert (
+        client.get("/health").json()["dataset"]["dataset_version"]
+        == info["dataset_version"]
+    )
+    parent = service.store.dataset()
+    assert (parent / "source.csv").read_bytes() == content
+    response = client.post("/train")
+    assert response.status_code == 201, response.text
+    assert sum(response.json()["split_sizes"].values()) == 24
+    assert service.store.dataset() != parent
+    assert client.get("/health").json()["dataset"]["rows"] == 24
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        b"",
+        b"text,class\nhello,high\n",
+        b"text,label\nhello,positive\n",
+        b"text,label\n,high\n",
+        b"text,label\nhello,high\nHELLO!,low\n",
+        b'text,label\n"unclosed,high\n',
+        b"text,label\nhello\n",
+        b"\xff\xfe\x00",
+    ],
+)
+def test_bad_dataset_upload_preserves_current_data(
+    client: TestClient, content: bytes
+) -> None:
+    service = backend(client)
+    client.post("/feedback", json={"text": "Pending feedback", "label": "high"})
+    parent = service.store.dataset()
+    pending = (parent / "feedback.csv").read_bytes()
+    assert (
+        client.post("/upload-dataset", files={"file": ("bad.csv", content)}).status_code
+        == 422
+    )
+    assert service.store.dataset() == parent
+    assert (parent / "feedback.csv").read_bytes() == pending
+    assert list(service.store.datasets.iterdir()) == [parent]
+
+
+def test_upload_supports_bom_deduplicates_and_defers_class_minimum_to_training(
+    client: TestClient,
+) -> None:
+    content = '\ufefftext,label,extra\n"Hello, world", high ,one\n"HELLO, WORLD!",high,two\n'.encode(
+        "utf-8"
+    )
+    result = client.post("/upload-dataset", files={"file": ("reviews.csv", content)})
+    assert result.status_code == 201, result.text
+    assert result.json()["rows"] == 1
+    assert result.json()["labels"] == {"high": 1}
+    assert client.post("/train").status_code == 422
+    assert client.get("/health").json()["dataset"]["rows"] == 1
+
+
+def test_upload_keeps_pending_feedback_and_active_model(
+    client: TestClient, initial: Path, trained: Path
+) -> None:
+    from research_graph.backend.predictor import Predictor
+
+    service = backend(client)
+    service.predictor = Predictor(trained)
+    client.post(
+        "/feedback", json={"text": "Brand new screen reader review", "label": "high"}
+    )
+    old = service.store.dataset()
+    pending = (old / "feedback.csv").read_bytes()
+    response = client.post(
+        "/upload-dataset", files={"file": ("reviews.csv", initial.read_bytes())}
+    )
+    assert response.status_code == 201
+    assert response.json()["pending_count"] == 1
+    assert service.predictor.version == "baseline-v1"
+    assert (service.store.dataset() / "feedback.csv").read_bytes() == pending
+    assert (old / "feedback.csv").read_bytes() == pending
+    result = client.post("/train")
+    assert result.status_code == 201, result.text
+    assert sum(result.json()["split_sizes"].values()) == 25
+
+
+def test_dataset_upload_limit_and_failed_commit(
+    client: TestClient, initial: Path
+) -> None:
+    service = backend(client)
+    parent = service.store.dataset()
+    with patch.object(service.store, "commit", side_effect=OSError("disk error")):
+        assert (
+            client.post(
+                "/upload-dataset", files={"file": ("reviews.csv", initial.read_bytes())}
+            ).status_code
+            == 500
+        )
+    assert service.store.dataset() == parent
+    assert list(service.store.datasets.iterdir()) == [parent]
+    service.settings.max_dataset_bytes = 2
+    assert (
+        client.post(
+            "/upload-dataset", files={"file": ("large.csv", b"123")}
+        ).status_code
+        == 413
+    )
+    assert service.store.dataset() == parent
+
+
+def test_dataset_uploaded_during_training_is_not_overwritten(
+    client: TestClient, initial: Path
+) -> None:
+    from research_graph.ml.train import train as original_train
+
+    entered, resume = threading.Event(), threading.Event()
+
+    def delayed(*args: Any, **kwargs: Any) -> dict[str, object]:
+        entered.set()
+        assert resume.wait(15)
+        return original_train(*args, **kwargs)
+
+    with (
+        patch("research_graph.backend.service.train", side_effect=delayed),
+        ThreadPoolExecutor(max_workers=1) as pool,
+    ):
+        future = pool.submit(client.post, "/train")
+        try:
+            assert entered.wait(10)
+            uploaded = client.post(
+                "/upload-dataset", files={"file": ("reviews.csv", initial.read_bytes())}
+            )
+            assert uploaded.status_code == 201
+        finally:
+            resume.set()
+        assert future.result(timeout=15).status_code == 409
+    service = backend(client)
+    assert service.store.dataset().name == uploaded.json()["dataset_version"]
+    assert service.store.model_directories() == []

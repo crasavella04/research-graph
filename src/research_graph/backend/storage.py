@@ -40,20 +40,21 @@ def atomic_json(path: Path, value: object) -> None:
         staged.replace(path)
 
 
-def reviews(path: Path) -> list[dict[str, str]]:
-    fields, rows = read_csv(path)
+def reviews(path: Path, *, strict: bool = False) -> list[dict[str, str]]:
+    fields, rows = read_csv(path, strict=strict)
     if not {"text", "label"} <= set(fields) or not rows:
         raise ValueError("Dataset must contain non-empty text and label columns")
     unique: dict[str, dict[str, str]] = {}
     for row in rows:
         text = normalize(row["text"])
         key = duplicate_key(text)
-        if not key or row["label"] not in LABELS:
+        label = row["label"].strip()
+        if not key or label not in LABELS:
             raise ValueError("Dataset contains an empty text or invalid label")
         identifier = digest(key)
-        if identifier in unique and unique[identifier]["label"] != row["label"]:
+        if identifier in unique and unique[identifier]["label"] != label:
             raise ValueError("Dataset contains conflicting duplicate labels")
-        unique[identifier] = {"id": identifier, "text": text, "label": row["label"]}
+        unique[identifier] = {"id": identifier, "text": text, "label": label}
     return sorted(unique.values(), key=lambda row: row["id"])
 
 

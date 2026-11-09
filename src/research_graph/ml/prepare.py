@@ -28,9 +28,11 @@ def duplicate_key(text: str) -> str:
     return " ".join(re.findall(r"\w+", text.casefold()))
 
 
-def read_csv(path: Path) -> tuple[list[str], list[dict[str, str]]]:
+def read_csv(
+    path: Path, *, strict: bool = False
+) -> tuple[list[str], list[dict[str, str]]]:
     with path.open(encoding="utf-8-sig", newline="") as stream:
-        reader = csv.DictReader(stream)
+        reader = csv.DictReader(stream, strict=strict)
         if not reader.fieldnames or len(set(reader.fieldnames)) != len(
             reader.fieldnames
         ):

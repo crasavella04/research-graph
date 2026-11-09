@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from research_graph.backend.config import APISettings
 from research_graph.backend.schemas import (
+    DatasetUploadResult,
     FeedbackRequest,
     FeedbackResult,
     Health,
@@ -19,7 +20,12 @@ from research_graph.backend.schemas import (
     TrainingRequest,
     TrainingResult,
 )
-from research_graph.backend.service import Backend, ModelExistsError, TrainingBusyError
+from research_graph.backend.service import (
+    Backend,
+    DatasetChangedError,
+    ModelExistsError,
+    TrainingBusyError,
+)
 from research_graph.config import get_settings
 from research_graph.logging_setup import setup_logging
 
@@ -109,13 +115,28 @@ def create_app(
             logger.exception("Could not import model bundle")
             raise HTTPException(422, "Invalid or incompatible model bundle") from exc
 
+    @api.post("/upload-dataset", status_code=201, response_model=DatasetUploadResult)
+    def upload_dataset(file: Annotated[UploadFile, File()]) -> dict[str, Any]:
+        content = file.file.read(config.max_dataset_bytes + 1)
+        if len(content) > config.max_dataset_bytes:
+            raise HTTPException(413, "Dataset exceeds the upload size limit")
+        try:
+            return backend().upload_dataset(content, file.filename)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except OSError as exc:
+            logger.exception("Could not save uploaded dataset")
+            raise HTTPException(
+                500, "Could not save dataset; previous version preserved"
+            ) from exc
+
     @api.post("/train", response_model=TrainingResult, status_code=201)
     def retrain(payload: TrainingRequest | None = None) -> dict[str, Any]:
         # A normal sync endpoint executes in Starlette's thread pool. The HTTP
         # response waits for the complete result; other endpoints are not locked.
         try:
             return backend().retrain(payload or TrainingRequest())
-        except TrainingBusyError as exc:
+        except (TrainingBusyError, DatasetChangedError) as exc:
             raise HTTPException(409, str(exc)) from exc
         except FileNotFoundError as exc:
             raise HTTPException(404, str(exc)) from exc
