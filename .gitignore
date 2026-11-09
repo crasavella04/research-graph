@@ -18,6 +18,7 @@ artifacts/
 
 # Frontend
 node_modules/
+.vite/
 *.tsbuildinfo
 frontend/.env.local
 
