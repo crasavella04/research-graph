@@ -16,6 +16,11 @@ wheels/
 data/
 artifacts/
 
+# Frontend
+node_modules/
+*.tsbuildinfo
+frontend/.env.local
+
 # Tool caches
 .coverage
 .mypy_cache/
